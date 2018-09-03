@@ -114,6 +114,34 @@ Sub createReport()
     
 End Sub
 
+Sub createTvReport()
+
+    Workbooks.Add
+    ActiveWorkbook.SaveAs finalReportPath
+    
+    Dim finalReport As Workbook
+    Dim ws1 As Worksheet
+    Dim ws2 As Worksheet
+    Dim names As Worksheet
+    Dim statuses As Worksheet
+    
+    Set finalReport = Application.Workbooks.Open(finalReportPath)
+    Set ws1 = finalReport.Worksheets(1)
+    
+    ws1.Cells(1, 1).Value = "Agent"
+    ws1.Cells(1, 2).Value = "Avg Call Inbound"
+    ws1.Cells(1, 3).Value = "Total"
+    
+    ws1.Rows(1).Font.Bold = True
+    ws1.Range("A1:AZ1").HorizontalAlignment = xlCenter
+    
+    With finalReport
+        .Save
+        .Close
+    End With
+    
+End Sub
+
 Sub setTotals(name As String, ws As Worksheet, row As Integer, tmpReportWs As Worksheet, totalsRow As Integer)
     
     ws.Cells(row, 1).Value = name
@@ -211,7 +239,7 @@ Function getAddress(ws As Worksheet, row As Integer, col As Integer) As String
 
 End Function
 
-Sub setTeleVantage(finalReport As Workbook, row As Integer, name As String)
+Sub setTeleVantage(finalReport As Workbook, row As Integer, name As String, statusesOnly As Boolean)
 
     Dim statuses As Worksheet
     Dim tmpReportWs As Worksheet
@@ -231,8 +259,10 @@ Sub setTeleVantage(finalReport As Workbook, row As Integer, name As String)
         End If
     Next r
     
-    Set ws1 = finalReport.Worksheets(1)
-    Call setTotals(name, ws1, row, tmpReportWs, totalsRow)
+    If Not statusesOnly = True Then
+        Set ws1 = finalReport.Worksheets(1)
+        Call setTotals(name, ws1, row, tmpReportWs, totalsRow)
+    End If
     
     For r = totalsRow + 1 To tmpReportWs.UsedRange.Rows.Count
         If tmpReportWs.Cells(r, 1).Value = "Date" Then
@@ -243,18 +273,25 @@ Sub setTeleVantage(finalReport As Workbook, row As Integer, name As String)
         End If
     Next r
     
-    Set ws2 = finalReport.Worksheets(2)
+    If statusesOnly = True Then
+        Set ws2 = finalReport.Worksheets(1)
+    Else
+        Set ws2 = finalReport.Worksheets(2)
+    End If
+    
     Call setStatuses(name, ws2, row, tmpReportWs, statusesRow, statusesTotalsRow, totalsRow)
     
-    Set statuses = ThisWorkbook.Worksheets(3)
-    hoursStr = "=B" & row
-    For r = 2 To statuses.UsedRange.Rows.Count
-        If statuses.Cells(r, 2).Value = False Then
-            hoursStr = hoursStr & "-Sheet2!" & ws2.Cells(row, r + 2).Address(False, False)
-        End If
-    Next r
-    
-    ws1.Cells(row, 3).Value = hoursStr
+    If Not statusesOnly = True Then
+        Set statuses = ThisWorkbook.Worksheets(3)
+        hoursStr = "=B" & row
+        For r = 2 To statuses.UsedRange.Rows.Count
+            If statuses.Cells(r, 2).Value = False Then
+                hoursStr = hoursStr & "-Sheet2!" & ws2.Cells(row, r + 2).Address(False, False)
+            End If
+        Next r
+        
+        ws1.Cells(row, 3).Value = hoursStr
+    End If
     
     tmpReportWs.Parent.Close
     
@@ -749,7 +786,7 @@ Sub Button1_Click()
         name = runParams.Cells(row, 1).Value
         Call updateTemplateParam(name, rangeParam)
         Call runTVRRunAndWait
-        Call setTeleVantage(wbReport, row, name)
+        Call setTeleVantage(wbReport, row, name, False)
     Next row
     
     runParams.Cells(2, colFiles + 2).Value = "FinalReport_" & timeStamp & ".xls"
@@ -762,6 +799,51 @@ Sub Button1_Click()
     MsgBox "Generated Report File: " & finalReportPath
 
 End Sub
+
+
+Sub ButtonTV_Click()
+
+    Dim runParams As Worksheet
+    Dim wbReport As Workbook
+    Dim onlineRange As Range
+    Dim name As String
+    Dim rangeParam As String
+    Dim timeStamp As String
+    Dim row As Integer
+    Dim colFiles As Integer
+
+    Set runParams = ThisWorkbook.Worksheets(1)
+    
+    colFiles = 6
+    path = ThisWorkbook.path + "\"
+    timeStamp = Format(Now(), "mmddyyyyhhmm")
+    tmpReportPath = path + "TMPActivityHistoryByAgent.xls"
+    templatePath = path + runParams.Cells(2, colFiles).Value
+    finalReportPath = path + "FinalReport_" & timeStamp & ".xls"
+    
+    rangeParam = runParams.Cells(2, colFiles + 1).Value
+        
+    Call createTvReport
+    Set wbReport = Application.Workbooks.Open(finalReportPath)
+    
+    For row = 2 To runParams.UsedRange.Rows.Count
+        name = runParams.Cells(row, 1).Value
+        Call updateTemplateParam(name, rangeParam)
+        Call runTVRRunAndWait
+        Call setTeleVantage(wbReport, row, name, True)
+    Next row
+    
+    runParams.Cells(2, colFiles + 2).Value = "FinalReport_" & timeStamp & ".xls"
+    
+    With wbReport
+        .Save
+        .Close
+    End With
+    
+    MsgBox "Generated Report File: " & finalReportPath
+
+End Sub
+
 
 
 
